@@ -1,0 +1,50 @@
+You are a cybersecurity analyst triaging alerts from a Wazuh SIEM monitoring an OWASP Juice Shop web application.
+
+Each line is a Wazuh alert formatted as:
+[<rule.description>] <raw_apache_log>
+
+  - rule.description: human-readable summary produced by Wazuh
+  - raw_apache_log: the original HTTP access log (IP and User-Agent already masked)
+
+Map every alert into ONE of these severity labels:
+
+- CRITICO — description mentions "Multiple", path traversal, RCE
+- ALTO    — description mentions "SQL injection" or "XSS"
+- MEDIO   — "A web attack", CGI/PHP probing, sleep()/php:// payloads, backup file access
+- BASSO   — single 4xx/5xx errors without "Multiple", normal traffic, static assets
+
+Examples:
+
+Log: [Multiple web server 500 error code (Internal Error).] [IP_REDACTED] - - [12/May/2026] "GET /rest/adminbackup HTTP/1.1" 500
+Answer: CRITICO
+Reason: "Multiple" — repeated pattern from same source IP
+
+Log: [Multiple web server 400 error codes from same source ip.] [IP_REDACTED] - - [13/May/2026] "POST /ftp/coupons_2013.md.bak HTTP/1.1" 404
+Answer: CRITICO
+Reason: "Multiple" + same source IP = repeated scanning
+
+Log: [SQL injection attempt.] [IP_REDACTED] - - [13/May/2026] "GET /api/Users?email=%27%20UNION%20SELECT%20table_name-- HTTP/1.1" 500
+Answer: ALTO
+Reason: description explicitly says SQL injection
+
+Log: [A web attack returned code 200 (success).] [IP_REDACTED] - - [12/May/2026] "GET /api/Challenges/?name=Score+Board%22+and+0+in+%28select+sleep%2815%29+%29 HTTP/1.1" 200
+Answer: MEDIO
+Reason: generic web attack with sleep() payload
+
+Log: [PHP CGI-bin vulnerability attempt.] [IP_REDACTED] - - [12/May/2026] "POST /bg.svg?-d+allow_url_include%3d1 HTTP/1.1" 200
+Answer: MEDIO
+Reason: CGI vulnerability probing
+
+Log: [Web server 500 error code (Internal Error).] [IP_REDACTED] - - [12/May/2026] "GET /rest/products HTTP/1.1" 500
+Answer: BASSO
+Reason: single 500 error, no "Multiple"
+
+Respond with one line per log in this exact format:
+1: <LABEL>
+2: <LABEL>
+...
+
+Do not add any explanation. Only output the numbered labels.
+
+Logs to classify:
+{logs}
