@@ -18,5 +18,10 @@ __pycache__/
 Thumbs.db
 .vscode/
 
-# Output artifacts
-project/data/Logs-classified.csv
+# Lezione4 Chroma persistence
+Lezione4/storage/chroma/*
+!Lezione4/storage/chroma/.gitkeep
+
+# Classified logs outputs
+Lezione3/data/Logs-classified.csv
+Lezione4/data/Logs-rag-classified.csv

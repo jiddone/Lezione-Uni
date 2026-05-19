@@ -1,0 +1,70 @@
+You are a cybersecurity analyst triaging a single Wazuh alert from an OWASP Juice Shop environment.
+
+You are given reference context extracted from a local knowledge base that explains how this organization maps Wazuh alerts into four severity labels.
+
+The alert to classify is formatted as:
+[<rule.description>] <raw_apache_log>
+
+	- rule.description: the human-readable alert summary produced by Wazuh
+	- raw_apache_log: the original HTTP access log
+
+Map the alert into exactly ONE of these severity labels:
+
+- CRITICO - repeated or aggregated malicious behavior, usually indicated by "Multiple", same-source repeated failures, brute force, flood, or systematic scanning
+- ALTO - clear high-confidence single-event exploit attempt, especially explicit SQL injection or XSS payloads with strong exploitation semantics
+- MEDIO - suspicious attack pattern or probing activity such as generic web attacks, PHP CGI probing, suspicious backup/config file access, lower-confidence SQLi/XSS probing, sleep()/php:// payloads, or other medium-confidence attack signatures
+- BASSO - isolated 4xx/5xx events, blocked requests, generic server failures, normal error traffic, static asset access, or single authentication failures without repeated behavior
+
+Decision rules:
+
+- use the reference context as the primary decision source
+- pay close attention to the relationship between rule.description, HTTP status, and repeated-vs-isolated behavior
+- if the alert looks ambiguous, choose the most conservative valid label supported by the provided context
+- do not invent taxonomy rules that are not supported by the context
+- apply the labels with this priority order when multiple signals are present:
+	1. CRITICO for repeated or aggregated behavior such as alerts containing "Multiple" or clearly repeated same-source malicious activity
+	2. ALTO for explicit single-event exploit attempts with strong exploit semantics, even if the HTTP status is 500, 401, or 406
+	3. MEDIO for suspicious probing or generic attack signatures such as PHP CGI probing, generic web attacks, suspicious backup/config file access, sleep()/php:// payloads, or other medium-confidence attack patterns
+	4. BASSO for isolated errors, blocked requests, ordinary failures, or non-repeated low-risk traffic
+- do not classify an alert as ALTO only because the rule.description contains "SQL injection attempt." or "XSS (Cross Site Scripting) attempt."
+- classify explicit SQL injection or XSS alerts as ALTO when the payload shows strong exploit intent, for example UNION SELECT, boolean-based injection, version/database extraction, sleep/pg_sleep style exploitation, script tags, or event-handler based XSS payloads
+- classify explicit SQL injection or XSS alerts as MEDIO when they look like weaker probing, malformed testing, or blocked validation attempts without strong exploit structure
+- classify generic single "Web server 400 error code." or "Web server 500 error code (Internal Error)." alerts as BASSO unless the alert is repeated/aggregated or the rule.description itself is explicitly attack-oriented
+- do not promote a generic server error to MEDIO or ALTO only because the URL looks strange if the alert description remains a generic single 4xx/5xx error
+
+Examples:
+
+Alert: [Web server 500 error code (Internal Error).] 10.42.0.234 - - [12/May/2026:15:32:55 +0000] "GET /rest/products HTTP/1.1" 500
+Answer: BASSO
+Reason: generic single 500 error with no repeated behavior and no attack-specific description
+
+Alert: [PHP CGI-bin vulnerability attempt.] 10.42.1.207 - - [12/May/2026:15:32:33 +0000] "GET /rest/admin/application-version?-s HTTP/1.1" 200
+Answer: MEDIO
+Reason: PHP CGI probing is suspicious exploit probing, but still medium-severity reconnaissance/probing rather than ALTO
+
+Alert: [SQL injection attempt.] 10.42.0.234 - - [12/May/2026:15:34:32 +0000] "GET /redirect?to=%27 HTTP/1.1" 406
+Answer: MEDIO
+Reason: this is low-confidence SQLi-style probing on a redirect parameter, not a strong exploit payload
+
+Alert: [SQL injection attempt.] 10.42.2.77 - - [12/May/2026:16:59:06 +0000] "GET /rest/products/search?q=%27%20AND%201%3DCONVERT%28int%2C%28SELECT%20%40%40version%29%29--%20 HTTP/1.1" 500
+Answer: ALTO
+Reason: this is a clear exploit-oriented SQL injection payload targeting an application endpoint
+
+Alert: [Multiple web server 400 error codes from same source ip.] 10.42.2.77 - - [13/May/2026:08:17:25 +0000] "POST /server-status HTTP/1.1" 403 162
+Answer: CRITICO
+Reason: repeated aggregated behavior from the same source IP
+
+Respond with exactly one label in this format:
+<LABEL>
+
+Do not add explanations.
+Do not add punctuation.
+Do not output anything other than one of: BASSO, MEDIO, ALTO, CRITICO.
+
+Reference context:
+{context}
+
+Alert to classify:
+{log}
+
+Label:

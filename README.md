@@ -1,43 +1,67 @@
-# LLM Log Classification - Setup Iniziale
+# LLM Log Severity Classification
 
-## Descrizione
-Pipeline Python per classificare log Wazuh in quattro classi di rischio (`BASSO`, `MEDIO`, `ALTO`, `CRITICO`) con prompt engineering (`zero_shot`, `one_shot`, `few_shot`) e modello Ollama `gpt-oss:120b-cloud`.
+## Obiettivo
 
-La logica applicativa e i file di progetto sono nella cartella `project/`.
+Il repository contiene due step coerenti tra loro per la classificazione di log Wazuh in quattro classi di rischio:
+
+- `BASSO`
+- `MEDIO`
+- `ALTO`
+- `CRITICO`
+
+Le cartelle principali sono:
+
+- `Lezione3/`: baseline con prompt engineering classico (`zero_shot`, `one_shot`, `few_shot`)
+- `Lezione4/`: evoluzione verso severity classification con supporto RAG locale e vector database
+
+Il file `requirements.txt` si trova nella root del progetto.
 
 ## Prerequisiti
+
 - Python 3.11+
 - Git
 - Ollama installato e server avviabile
 
 ## Setup rapido (Windows PowerShell)
-1. Entra nella cartella progetto:
+
+Dalla root del progetto:
+
+1. Crea il virtual environment, se non esiste:
    ```powershell
-   cd .\project
+   python -m venv .venv
    ```
-2. Crea il virtual environment (se non esiste):
+2. Attiva il virtual environment:
    ```powershell
-   python -m venv ..\.venv
+   .\.venv\Scripts\Activate.ps1
    ```
-3. Attiva il virtual environment:
+3. Installa le dipendenze:
    ```powershell
-   ..\.venv\Scripts\Activate.ps1
+   pip install -r .\requirements.txt
    ```
-4. Installa le dipendenze:
-   ```powershell
-   pip install -r requirements.txt
-   ```
-5. Avvia Ollama (in un altro terminale):
+4. Avvia Ollama in un altro terminale:
    ```powershell
    ollama serve
    ```
-6. Scarica il modello:
+5. Scarica il modello se non e gia presente:
    ```powershell
    ollama pull gpt-oss:120b-cloud
    ```
 
-## Esecuzione
-Dalla cartella `project/`:
+## Lezione 3
+
+### Descrizione
+
+Pipeline baseline per classificare i log Wazuh con prompt engineering tradizionale.
+
+Strategie disponibili:
+
+- `zero_shot`
+- `one_shot`
+- `few_shot`
+
+### Esecuzione
+
+Dalla cartella `Lezione3/`:
 
 - Tutte le strategie:
   ```powershell
@@ -50,31 +74,112 @@ Dalla cartella `project/`:
   ..\.venv\Scripts\python.exe main.py few_shot
   ```
 
-## Input e Output
-- Input: `project/data/Logs.csv`
-- Output: `project/data/Logs-classified.csv`
+### Input e Output
 
-## Struttura minima
-- `project/main.py`: entrypoint, orchestrazione run e metriche finali
-- `project/classifier.py`: batching, prompt injection, telemetria batch
-- `project/masking.py`: masking IP e User-Agent
-- `project/ollama_client.py`: chiamata HTTP a Ollama e parsing risposte
-- `project/prompts/*.txt`: template prompt per ogni strategia
+- Input: `Lezione3/data/Logs.csv`
+- Output: `Lezione3/data/Logs-classified.csv`
 
-## Preparazione repo Git e pubblicazione su GitHub
-Questa cartella e pronta per essere versionata con Git.
+### File principali
 
-Comandi consigliati dalla root (`Lezione Uni/`):
+- `Lezione3/main.py`: entrypoint e metriche finali
+- `Lezione3/classifier.py`: batching, prompt injection e telemetria batch
+- `Lezione3/masking.py`: masking IP e User-Agent
+- `Lezione3/ollama_client.py`: chiamata HTTP a Ollama
+- `Lezione3/prompts/*.txt`: prompt per ogni strategia
+
+## Lezione 4
+
+### Descrizione
+
+Evoluzione della severity classification verso una pipeline con supporto RAG locale.
+
+La KB contiene solo documenti di riferimento sulla severity in `Lezione4/data/docs/`.
+Il dataset `Lezione4/data/Logs.csv` non viene indicizzato nella KB: viene usato solo come input per classificare i log.
+
+Stack usato:
+
+- LlamaIndex per ingest e retrieval
+- ChromaDB per persistenza locale
+- sentence-transformers per embedding
+- Ollama per la classificazione finale guidata da prompt
+
+### Ingest della KB
+
+Dalla root del progetto:
 
 ```powershell
-git init -b main
-git add .
-git commit -m "chore: initial project setup"
+.\.venv\Scripts\python.exe .\Lezione4\ingest.py
 ```
 
-Quando crei la repo vuota su GitHub, collega il remote e fai push:
+Cosa fa:
+
+- legge i file `.md` in `Lezione4/data/docs/`
+- ricrea la collection Chroma locale
+- chunka i documenti
+- genera gli embedding locali
+- salva la persistenza in `Lezione4/storage/chroma/`
+
+### Query sulla KB
 
 ```powershell
-git remote add origin https://github.com/<utente>/<nome-repo>.git
-git push -u origin main
+.\.venv\Scripts\python.exe .\Lezione4\query.py "Which severity corresponds to rule.level 6?"
 ```
+
+Opzioni utili:
+
+```powershell
+.\.venv\Scripts\python.exe .\Lezione4\query.py "Question" --top-k 5
+.\.venv\Scripts\python.exe .\Lezione4\query.py "Question" --show-context
+```
+
+### Classificazione log con supporto RAG
+
+Singolo log del dataset:
+
+```powershell
+.\.venv\Scripts\python.exe .\Lezione4\classify_logs.py --log-id 685
+```
+
+Subset piccolo:
+
+```powershell
+.\.venv\Scripts\python.exe .\Lezione4\classify_logs.py --limit 10 --batch-size 10
+```
+
+Cinque batch da 10:
+
+```powershell
+.\.venv\Scripts\python.exe .\Lezione4\classify_logs.py --limit 50 --batch-size 10
+```
+
+Tutto il dataset in batch da 50:
+
+```powershell
+.\.venv\Scripts\python.exe .\Lezione4\classify_logs.py --all --batch-size 50
+```
+
+Log manuale:
+
+```powershell
+.\.venv\Scripts\python.exe .\Lezione4\classify_logs.py --log-text "10.42.0.234 - - [12/May/2026:15:32:55 +0000] \"GET /rest/products HTTP/1.1\" 500 -" --rule-description "Web server 500 error code (Internal Error)."
+```
+
+La classificazione in `Lezione4`:
+
+- non inserisce `Lezione4/data/Logs.csv` nella KB
+- recupera solo i documenti di severity gia indicizzati
+- usa il prompt `Lezione4/prompts/classification_prompt.txt`
+- invia il contesto a Ollama e normalizza la label finale
+- mostra avanzamento batch in stile `Lezione3`
+- lascia intatto `Lezione4/data/Logs.csv`
+- salva di default i risultati in `Lezione4/data/Logs-rag-classified.csv`
+
+### File principali
+
+- `Lezione4/ingest.py`: ingest e indicizzazione persistente
+- `Lezione4/query.py`: query concettuali sulla KB
+- `Lezione4/classify_logs.py`: severity classification con supporto RAG
+- `Lezione4/kb.py`: helper condivisi per Chroma, embedding e documenti
+- `Lezione4/ollama_client.py`: client HTTP verso Ollama
+- `Lezione4/prompts/rag_prompt.txt`: prompt per query sulla KB
+- `Lezione4/prompts/classification_prompt.txt`: prompt per severity classification
