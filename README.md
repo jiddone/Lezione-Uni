@@ -12,7 +12,7 @@ Il repository contiene due step coerenti tra loro per la classificazione di log 
 Le cartelle principali sono:
 
 - `Lezione3/`: baseline con prompt engineering classico (`zero_shot`, `one_shot`, `few_shot`)
-- `Lezione4/`: evoluzione verso severity classification con supporto RAG locale e vector database
+- `Lezione4/`: severity classification con due esperimenti separati: prompt engineering CoT e supporto RAG locale
 
 Il file `requirements.txt` si trova nella root del progetto.
 
@@ -91,7 +91,12 @@ Dalla cartella `Lezione3/`:
 
 ### Descrizione
 
-Evoluzione della severity classification verso una pipeline con supporto RAG locale.
+La Lezione 4 estende la classificazione della severity con due approcci distinti:
+
+- `cot`: esperimento di prompt engineering Chain of Thought senza knowledge base
+- `rag`: classificazione guidata da retrieval su knowledge base locale
+
+I due approcci sono indipendenti tra loro e possono essere eseguiti anche insieme con `--method all` per confrontare metriche e output sullo stesso dataset.
 
 La KB contiene solo documenti di riferimento sulla severity in `Lezione4/data/docs/`.
 Il dataset `Lezione4/data/Logs.csv` non viene indicizzato nella KB: viene usato solo come input per classificare i log.
@@ -102,6 +107,12 @@ Stack usato:
 - ChromaDB per persistenza locale
 - sentence-transformers per embedding
 - Ollama per la classificazione finale guidata da prompt
+
+Metodi disponibili in `Lezione4/classify_logs.py`:
+
+- `rag`: usa la KB locale, recupera il contesto e applica il prompt `Lezione4/prompts/classification_prompt.txt`
+- `cot`: non usa la KB e applica il prompt `Lezione4/prompts/cot_prompt.txt`
+- `all`: esegue in sequenza `rag` e `cot` sullo stesso input
 
 ### Ingest della KB
 
@@ -132,54 +143,63 @@ Opzioni utili:
 .\.venv\Scripts\python.exe .\Lezione4\query.py "Question" --show-context
 ```
 
-### Classificazione log con supporto RAG
+### Classificazione log
 
 Singolo log del dataset:
 
 ```powershell
-.\.venv\Scripts\python.exe .\Lezione4\classify_logs.py --log-id 685
+.\.venv\Scripts\python.exe .\Lezione4\classify_logs.py --method rag --log-id 685
+.\.venv\Scripts\python.exe .\Lezione4\classify_logs.py --method cot --log-id 685
 ```
 
 Subset piccolo:
 
 ```powershell
-.\.venv\Scripts\python.exe .\Lezione4\classify_logs.py --limit 10 --batch-size 10
+.\.venv\Scripts\python.exe .\Lezione4\classify_logs.py --method rag --limit 10 --batch-size 10
+.\.venv\Scripts\python.exe .\Lezione4\classify_logs.py --method cot --limit 10 --batch-size 10
 ```
 
 Cinque batch da 10:
 
 ```powershell
-.\.venv\Scripts\python.exe .\Lezione4\classify_logs.py --limit 50 --batch-size 10
+.\.venv\Scripts\python.exe .\Lezione4\classify_logs.py --method all --limit 50 --batch-size 10
 ```
 
 Tutto il dataset in batch da 50:
 
 ```powershell
-.\.venv\Scripts\python.exe .\Lezione4\classify_logs.py --all --batch-size 50
+.\.venv\Scripts\python.exe .\Lezione4\classify_logs.py --method rag --all --batch-size 50
+.\.venv\Scripts\python.exe .\Lezione4\classify_logs.py --method cot --all --batch-size 50
+.\.venv\Scripts\python.exe .\Lezione4\classify_logs.py --method all --all --batch-size 50
 ```
 
 Log manuale:
 
 ```powershell
-.\.venv\Scripts\python.exe .\Lezione4\classify_logs.py --log-text "10.42.0.234 - - [12/May/2026:15:32:55 +0000] \"GET /rest/products HTTP/1.1\" 500 -" --rule-description "Web server 500 error code (Internal Error)."
+.\.venv\Scripts\python.exe .\Lezione4\classify_logs.py --method cot --log-text "10.42.0.234 - - [12/May/2026:15:32:55 +0000] \"GET /rest/products HTTP/1.1\" 500 -" --rule-description "Web server 500 error code (Internal Error)."
 ```
 
 La classificazione in `Lezione4`:
 
 - non inserisce `Lezione4/data/Logs.csv` nella KB
-- recupera solo i documenti di severity gia indicizzati
-- usa il prompt `Lezione4/prompts/classification_prompt.txt`
-- invia il contesto a Ollama e normalizza la label finale
+- nel metodo `rag` recupera solo i documenti di severity gia indicizzati
+- nel metodo `rag` usa il prompt `Lezione4/prompts/classification_prompt.txt`
+- nel metodo `cot` usa il prompt `Lezione4/prompts/cot_prompt.txt` senza interrogare la KB
+- nel metodo `all` esegue entrambi gli approcci nello stesso run
+- invia il prompt a Ollama e normalizza la label finale
 - mostra avanzamento batch in stile `Lezione3`
 - lascia intatto `Lezione4/data/Logs.csv`
 - salva di default i risultati in `Lezione4/data/Logs-rag-classified.csv`
+- il CSV batch ha colonne stabili per entrambi i metodi: `predicted_label_rag` e `predicted_label_cot`
+- se esiste gia, aggiorna solo le colonne del metodo eseguito; con `--method all` aggiorna entrambe
 
 ### File principali
 
 - `Lezione4/ingest.py`: ingest e indicizzazione persistente
 - `Lezione4/query.py`: query concettuali sulla KB
-- `Lezione4/classify_logs.py`: severity classification con supporto RAG
+- `Lezione4/classify_logs.py`: severity classification con metodi `rag`, `cot` e `all`
 - `Lezione4/kb.py`: helper condivisi per Chroma, embedding e documenti
 - `Lezione4/ollama_client.py`: client HTTP verso Ollama
 - `Lezione4/prompts/rag_prompt.txt`: prompt per query sulla KB
 - `Lezione4/prompts/classification_prompt.txt`: prompt per severity classification
+- `Lezione4/prompts/cot_prompt.txt`: prompt Chain of Thought per classificazione senza KB
