@@ -15,6 +15,7 @@ from config import (
     SIMILARITY_TOP_K,
 )
 from kb import build_context, collection_stats, extract_sources, load_index, reference_only_filters
+from masking import mask_log
 from ollama_client import generate_text
 
 
@@ -147,9 +148,10 @@ def normalize_label(raw_output: str) -> str:
 
 def build_enriched_log(full_log: str, rule_description: str) -> str:
     description = (rule_description or "").strip()
+    enriched_log = full_log
     if description:
-        return f"[{description}] {full_log}"
-    return full_log
+        enriched_log = f"[{description}] {full_log}"
+    return mask_log(enriched_log)
 
 
 def load_logs_from_csv(csv_path: str) -> pd.DataFrame:

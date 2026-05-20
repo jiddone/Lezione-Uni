@@ -25,3 +25,4 @@ Lezione4/storage/chroma/*
 # Classified logs outputs
 Lezione3/data/Logs-classified.csv
 Lezione4/data/Logs-rag-classified.csv
+Lezione4/data/Logs-cot-classified.csv
